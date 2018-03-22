@@ -2,9 +2,7 @@
 //
 // Use of this source code is governed by a BSD-style license that can be found in the LICENSE file.
 
-using CefSharp.Internals;
-
-namespace CefSharp
+namespace CefSharp.Internals
 {
     internal static class InternalWebBrowserExtensions
     {
@@ -22,7 +20,6 @@ namespace CefSharp
             browser.MenuHandler = null;
             browser.FocusHandler = null;
             browser.ResourceHandlerFactory = null;
-            browser.GeolocationHandler = null;
             browser.RenderProcessMessageHandler = null;
         }
     }

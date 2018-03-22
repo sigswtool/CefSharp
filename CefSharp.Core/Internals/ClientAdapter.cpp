@@ -18,7 +18,6 @@
 #include "CefSharpBrowserWrapper.h"
 #include "CefDownloadItemCallbackWrapper.h"
 #include "CefBeforeDownloadCallbackWrapper.h"
-#include "CefGeolocationCallbackWrapper.h"
 #include "CefFileDialogCallbackWrapper.h"
 #include "CefAuthCallbackWrapper.h"
 #include "CefJSDialogCallbackWrapper.h"
@@ -147,12 +146,6 @@ namespace CefSharp
                     if (browserAdapter != nullptr)
                     {
                         client = browserAdapter->GetClientAdapter().get();
-
-                        auto renderClientAdapter = dynamic_cast<RenderClientAdapter*>(client.get());
-                        if (renderClientAdapter != nullptr)
-                        {
-                            renderClientAdapter->CreateBitmapInfo();
-                        }
                     }
                 }
             }
@@ -366,9 +359,9 @@ namespace CefSharp
             return returnFlag;
         }
 
-        bool ClientAdapter::OnConsoleMessage(CefRefPtr<CefBrowser> browser, const CefString& message, const CefString& source, int line)
+        bool ClientAdapter::OnConsoleMessage(CefRefPtr<CefBrowser> browser, cef_log_severity_t level, const CefString& message, const CefString& source, int line)
         {
-            auto args = gcnew ConsoleMessageEventArgs(StringUtils::ToClr(message), StringUtils::ToClr(source), line);
+            auto args = gcnew ConsoleMessageEventArgs((LogSeverity)level, StringUtils::ToClr(message), StringUtils::ToClr(source), line);
 
             if (!browser->IsPopup())
             {
@@ -569,18 +562,24 @@ namespace CefSharp
 
         void ClientAdapter::OnRenderViewReady(CefRefPtr<CefBrowser> browser)
         {
-            if (!Object::ReferenceEquals(_browserAdapter, nullptr) && !_browserAdapter->IsDisposed && !browser->IsPopup())
+            if (CefSharpSettings::LegacyJavascriptBindingEnabled)
             {
-                auto objectRepository = _browserAdapter->JavascriptObjectRepository;
-
-                if (objectRepository->HasBoundObjects)
+                if (!Object::ReferenceEquals(_browserAdapter, nullptr) && !_browserAdapter->IsDisposed && !browser->IsPopup())
                 {
-                    //transmit async bound objects
-                    auto jsRootObjectMessage = CefProcessMessage::Create(kJavascriptRootObjectRequest);
-                    auto argList = jsRootObjectMessage->GetArgumentList();
-                    SerializeJsObject(objectRepository->AsyncRootObject, argList, 0);
-                    SerializeJsObject(objectRepository->RootObject, argList, 1);
-                    browser->SendProcessMessage(CefProcessId::PID_RENDERER, jsRootObjectMessage);
+                    auto objectRepository = _browserAdapter->JavascriptObjectRepository;
+
+                    //For legacy binding we only send kJavascriptRootObjectResponse when we have bound objects
+                    if (objectRepository->HasBoundObjects)
+                    {
+                        auto msg = CefProcessMessage::Create(kJavascriptRootObjectResponse);
+                        auto responseArgList = msg->GetArgumentList();
+                        responseArgList->SetBool(0, true); //Use Legacy Behaviour (auto bind on context creation)
+                        responseArgList->SetInt(1, -1);  //BrowserId
+                        SetInt64(responseArgList, 2, 0); //FrameId
+                        SetInt64(responseArgList, 3, 0); //CallbackId
+                        SerializeJsObjects(objectRepository->GetObjects(nullptr), responseArgList, 4);
+                        browser->SendProcessMessage(CefProcessId::PID_RENDERER, msg);
+                    }
                 }
             }
 
@@ -1050,33 +1049,6 @@ namespace CefSharp
             }
         }
 
-        bool ClientAdapter::OnRequestGeolocationPermission(CefRefPtr<CefBrowser> browser, const CefString& requesting_url, int request_id, CefRefPtr<CefGeolocationCallback> callback)
-        {
-            auto handler = _browserControl->GeolocationHandler;
-
-            if (handler == nullptr)
-            {
-                // Default deny, as CEF does.
-                return false;
-            }
-
-            auto browserWrapper = GetBrowserWrapper(browser->GetIdentifier(), browser->IsPopup());
-            auto callbackWrapper = gcnew CefGeolocationCallbackWrapper(callback);
-
-            return handler->OnRequestGeolocationPermission(_browserControl, browserWrapper, StringUtils::ToClr(requesting_url), request_id, callbackWrapper);
-        }
-
-        void ClientAdapter::OnCancelGeolocationPermission(CefRefPtr<CefBrowser> browser, int request_id)
-        {
-            auto handler = _browserControl->GeolocationHandler;
-
-            if (handler != nullptr)
-            {
-                auto browserWrapper = GetBrowserWrapper(browser->GetIdentifier(), browser->IsPopup());
-                handler->OnCancelGeolocationPermission(_browserControl, browserWrapper, request_id);
-            }
-        }
-
         void ClientAdapter::OnBeforeDownload(CefRefPtr<CefBrowser> browser, CefRefPtr<CefDownloadItem> download_item,
             const CefString& suggested_name, CefRefPtr<CefBeforeDownloadCallback> callback)
         {
@@ -1128,7 +1100,60 @@ namespace CefSharp
             auto argList = message->GetArgumentList();
             IJavascriptCallbackFactory^ callbackFactory = _browserAdapter->JavascriptCallbackFactory;
 
-            if (name == kOnContextCreatedRequest)
+            //TODO: JSB Rename messages (remove Root from name)
+            if (name == kJavascriptRootObjectRequest)
+            {
+                if (!Object::ReferenceEquals(_browserAdapter, nullptr) && !_browserAdapter->IsDisposed)
+                {
+                    auto objectRepository = _browserAdapter->JavascriptObjectRepository;
+
+                    auto browserId = argList->GetInt(0);
+                    auto frameId = GetInt64(argList, 1);
+                    auto callbackId = GetInt64(argList, 2);
+                    auto objectNames = argList->GetList(3);
+
+                    auto names = gcnew List<String^>(objectNames->GetSize());
+                    for (auto i = 0; i < objectNames->GetSize(); i++)
+                    {
+                        names->Add(StringUtils::ToClr(objectNames->GetString(i)));
+                    }
+
+                    //Call GetObjects with the list of names provided (will default to all if the list is empty
+                    //Previously we only sent a response if there were bound objects, now we always send
+                    //a response so the promise is resolved.
+                    auto objs = objectRepository->GetObjects(names);
+
+                    auto msg = CefProcessMessage::Create(kJavascriptRootObjectResponse);
+                    auto responseArgList = msg->GetArgumentList();
+                    responseArgList->SetBool(0, false); //Use LegacyBehaviour (false)
+                    responseArgList->SetInt(1, browserId);
+                    SetInt64(responseArgList, 2, frameId);
+                    SetInt64(responseArgList, 3, callbackId);
+                    SerializeJsObjects(objs, responseArgList, 4);
+                    browser->SendProcessMessage(CefProcessId::PID_RENDERER, msg);
+                }
+
+                handled = true;
+            }
+            else if (name == kJavascriptObjectsBoundInJavascript)
+            {
+                if (!Object::ReferenceEquals(_browserAdapter, nullptr) && !_browserAdapter->IsDisposed)
+                {
+                    auto objectRepository = _browserAdapter->JavascriptObjectRepository;
+
+                    auto objectNames = argList->GetList(0);
+                    auto names = gcnew List<String^>(objectNames->GetSize());
+                    for (auto i = 0; i < objectNames->GetSize(); i++)
+                    {
+                        names->Add(StringUtils::ToClr(objectNames->GetString(i)));
+                    }
+                    
+                    objectRepository->ObjectsBound(names);
+                }
+
+                handled = true;
+            }
+            else if (name == kOnContextCreatedRequest)
             {
                 _browserControl->SetCanExecuteJavascriptOnMainFrame(true);
 
@@ -1193,6 +1218,39 @@ namespace CefSharp
 
                     // DomNode will be empty if input focus was cleared
                     handler->OnFocusedNodeChanged(_browserControl, browserWrapper, %frameWrapper, node);
+                }
+            }
+            else if (name == kOnUncaughtException)
+            {
+                auto handler = _browserControl->RenderProcessMessageHandler;
+                if (handler != nullptr)
+                {
+                    auto browserWrapper = GetBrowserWrapper(browser->GetIdentifier(), browser->IsPopup());
+                    CefFrameWrapper frameWrapper(browser->GetFrame(GetInt64(argList, 0)));
+
+                    auto exception = gcnew JavascriptException();
+                    exception->Message = StringUtils::ToClr(argList->GetString(1));
+
+                    auto stackTrace = gcnew System::Collections::Generic::List<JavascriptStackFrame^>();
+
+                    auto argFrames = argList->GetList(2);
+
+                    for (auto i = 0; i < static_cast<int>(argFrames->GetSize()); i++)
+                    {
+                        auto frame = argFrames->GetList(i);
+
+                        auto stackFrame = gcnew JavascriptStackFrame();
+                        stackFrame->FunctionName = StringUtils::ToClr(frame->GetString(0));
+                        stackFrame->LineNumber = frame->GetInt(1);
+                        stackFrame->ColumnNumber = frame->GetInt(2);
+                        stackFrame->SourceName = StringUtils::ToClr(frame->GetString(3));
+
+                        stackTrace->Add(stackFrame);
+                    }
+
+                    exception->StackTrace = stackTrace->ToArray();
+
+                    handler->OnUncaughtException(_browserControl, browserWrapper, %frameWrapper, exception);
                 }
             }
             else if (name == kEvaluateJavascriptResponse || name == kJavascriptCallbackResponse)
