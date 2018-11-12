@@ -1,15 +1,16 @@
-﻿// Copyright © 2010-2017 The CefSharp Authors. All rights reserved.
+// Copyright © 2018 The CefSharp Authors. All rights reserved.
 //
 // Use of this source code is governed by a BSD-style license that can be found in the LICENSE file.
 
 using System;
 using System.IO.MemoryMappedFiles;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Interop;
 using System.Windows.Media;
-using System.Runtime.InteropServices;
 using System.Windows.Threading;
+using Rect = CefSharp.Structs.Rect;
 
 namespace CefSharp.Wpf.Rendering.Experimental
 {
@@ -50,25 +51,28 @@ namespace CefSharp.Wpf.Rendering.Experimental
             this.dispatcherPriority = dispatcherPriority;
         }
 
+        /// <summary>
+        /// Dispose
+        /// </summary>
         public void Dispose()
         {
             ReleaseMemoryMappedView(ref popupMemoryMappedFile, ref popupMemoryMappedViewAccessor);
             ReleaseMemoryMappedView(ref viewMemoryMappedFile, ref viewMemoryMappedViewAccessor);
         }
 
-        void IRenderHandler.OnPaint(bool isPopup, IntPtr buffer, Rect dirtyRect, int width, int height, Image image)
+        void IRenderHandler.OnPaint(bool isPopup, Rect dirtyRect, IntPtr buffer, int width, int height, Image image)
         {
             if (isPopup)
             {
-                CreateOrUpdateBitmap(isPopup, buffer, dirtyRect, width, height, image, ref popupSize, ref popupMemoryMappedFile, ref popupMemoryMappedViewAccessor);
+                CreateOrUpdateBitmap(isPopup, dirtyRect, buffer, width, height, image, ref popupSize, ref popupMemoryMappedFile, ref popupMemoryMappedViewAccessor);
             }
             else
             {
-                CreateOrUpdateBitmap(isPopup, buffer, dirtyRect, width, height, image, ref viewSize, ref viewMemoryMappedFile, ref viewMemoryMappedViewAccessor);
+                CreateOrUpdateBitmap(isPopup, dirtyRect, buffer, width, height, image, ref viewSize, ref viewMemoryMappedFile, ref viewMemoryMappedViewAccessor);
             }
         }
 
-        private void CreateOrUpdateBitmap(bool isPopup, IntPtr buffer, Rect dirtyRect, int width, int height, Image image, ref Size currentSize, ref MemoryMappedFile mappedFile, ref MemoryMappedViewAccessor viewAccessor)
+        private void CreateOrUpdateBitmap(bool isPopup, Rect dirtyRect, IntPtr buffer, int width, int height, Image image, ref Size currentSize, ref MemoryMappedFile mappedFile, ref MemoryMappedViewAccessor viewAccessor)
         {
             if (image.Dispatcher.HasShutdownStarted)
             {

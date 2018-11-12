@@ -1,4 +1,4 @@
-﻿// Copyright © 2010-2017 The CefSharp Authors. All rights reserved.
+// Copyright © 2017 The CefSharp Authors. All rights reserved.
 //
 // Use of this source code is governed by a BSD-style license that can be found in the LICENSE file.
 
@@ -14,9 +14,9 @@ using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using CefSharp;
 using CefSharp.Internals;
 using GalaSoft.MvvmLight.Command;
+using Size = System.Windows.Size;
 
 namespace CefSharp.Wpf.Example.Controls
 {
@@ -51,31 +51,31 @@ namespace CefSharp.Wpf.Example.Controls
                 throw new Exception("Screenshot already in progress, you must wait for the previous screenshot to complete");
             }
 
-            if(IsBrowserInitialized == false)
+            if (IsBrowserInitialized == false)
             {
                 throw new Exception("Browser has not yet finished initializing or is being disposed");
             }
 
-            if(IsLoading)
+            if (IsLoading)
             {
                 throw new Exception("Unable to take screenshot while browser is loading");
             }
 
             var browserHost = this.GetBrowser().GetHost();
 
-            if(browserHost == null)
+            if (browserHost == null)
             {
                 throw new Exception("IBrowserHost is null");
             }
 
-            screenshotTaskCompletionSource = new TaskCompletionSource<InteropBitmap>();
+            screenshotTaskCompletionSource = new TaskCompletionSource<InteropBitmap>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-            if(timeout.HasValue)
+            if (timeout.HasValue)
             {
                 screenshotTaskCompletionSource = screenshotTaskCompletionSource.WithTimeout(timeout.Value);
             }
 
-            if(frameRate.HasValue)
+            if (frameRate.HasValue)
             {
                 oldFrameRate = browserHost.WindowlessFrameRate;
                 browserHost.WindowlessFrameRate = frameRate.Value;
@@ -87,23 +87,23 @@ namespace CefSharp.Wpf.Example.Controls
             //Resize the browser using the desired screenshot dimensions
             //The resulting bitmap will never be rendered to the screen
             browserHost.WasResized();
-            
+
             return screenshotTaskCompletionSource.Task;
         }
 
-        protected override ViewRect GetViewRect()
+        protected override CefSharp.Structs.Rect? GetViewRect()
         {
-            if(isTakingScreenshot)
+            if (isTakingScreenshot)
             {
-                return new ViewRect((int)Math.Ceiling(screenshotSize.Value.Width), (int)Math.Ceiling(screenshotSize.Value.Height));
+                return new CefSharp.Structs.Rect(0, 0, (int)Math.Ceiling(screenshotSize.Value.Width), (int)Math.Ceiling(screenshotSize.Value.Height));
             }
 
             return base.GetViewRect();
         }
 
-        protected override void OnPaint(bool isPopup, Rect dirtyRect, IntPtr buffer, int width, int height)
+        protected override void OnPaint(bool isPopup, Structs.Rect dirtyRect, IntPtr buffer, int width, int height)
         {
-            if(isTakingScreenshot)
+            if (isTakingScreenshot)
             {
                 //We ignore the first n number of frames
                 if (ignoreFrames > 0)
@@ -133,8 +133,7 @@ namespace CefSharp.Wpf.Example.Controls
                         //NOTE: Interopbitmap is not capable of supporting DPI scaling
                         var bitmap = (InteropBitmap)Imaging.CreateBitmapSourceFromMemorySection(backBuffer,
                             width, height, PixelFormats.Bgra32, stride, 0);
-                        //Using TaskExtensions.TrySetResultAsync extension method so continuation runs on Threadpool
-                        screenshotTaskCompletionSource.TrySetResultAsync(bitmap);
+                        screenshotTaskCompletionSource.TrySetResult(bitmap);
 
                         isTakingScreenshot = false;
                         var browserHost = GetBrowser().GetHost();
@@ -143,12 +142,12 @@ namespace CefSharp.Wpf.Example.Controls
                         //Let the browser know the size changes so normal rendering can continue
                         browserHost.WasResized();
 
-                        if(viewAccessor != null)
+                        if (viewAccessor != null)
                         {
                             viewAccessor.Dispose();
                         }
 
-                        if(mappedFile != null)
+                        if (mappedFile != null)
                         {
                             mappedFile.Dispose();
                         }
@@ -156,7 +155,7 @@ namespace CefSharp.Wpf.Example.Controls
                 }
             }
             else
-            { 
+            {
                 base.OnPaint(isPopup, dirtyRect, buffer, width, height);
             }
         }
@@ -176,37 +175,37 @@ namespace CefSharp.Wpf.Example.Controls
 
                     var screenshotSize = new Size((int)widthAndHeight[0], (int)widthAndHeight[1]);
 
-                    TakeScreenshot(screenshotSize, ignoreFrames:0).ContinueWith((screenshotTask) =>
-                    {
-                        if (screenshotTask.Status == TaskStatus.RanToCompletion)
-                        {
-                            try
-                            {
-                                var bitmap = screenshotTask.Result;
-                                var tempFile = Path.GetTempFileName().Replace(".tmp", ".png");
-                                using (var stream = new FileStream(tempFile, FileMode.Create))
-                                {
-                                    var encoder = new PngBitmapEncoder();
-                                    encoder.Frames.Add(BitmapFrame.Create(bitmap));
-                                    encoder.Save(stream);
-                                }
+                    TakeScreenshot(screenshotSize, ignoreFrames: 0).ContinueWith((screenshotTask) =>
+                     {
+                         if (screenshotTask.Status == TaskStatus.RanToCompletion)
+                         {
+                             try
+                             {
+                                 var bitmap = screenshotTask.Result;
+                                 var tempFile = Path.GetTempFileName().Replace(".tmp", ".png");
+                                 using (var stream = new FileStream(tempFile, FileMode.Create))
+                                 {
+                                     var encoder = new PngBitmapEncoder();
+                                     encoder.Frames.Add(BitmapFrame.Create(bitmap));
+                                     encoder.Save(stream);
+                                 }
 
-                                Process.Start(new System.Diagnostics.ProcessStartInfo
-                                {
-                                    UseShellExecute = true,
-                                    FileName = tempFile
-                                });
-                            }
-                            catch (Exception ex)
-                            {
-                                var msg = ex.ToString();
-                            }
-                        }
-                        else
-                        {
-                            MessageBox.Show("Unable to capture screenshot");
-                        }
-                    }, uiThreadTaskScheduler); //Make sure continuation runs on UI thread
+                                 Process.Start(new ProcessStartInfo
+                                 {
+                                     UseShellExecute = true,
+                                     FileName = tempFile
+                                 });
+                             }
+                             catch (Exception ex)
+                             {
+                                 var msg = ex.ToString();
+                             }
+                         }
+                         else
+                         {
+                             MessageBox.Show("Unable to capture screenshot");
+                         }
+                     }, uiThreadTaskScheduler); //Make sure continuation runs on UI thread
 
                 }
                 else

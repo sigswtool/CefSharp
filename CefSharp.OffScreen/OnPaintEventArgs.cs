@@ -1,8 +1,9 @@
-﻿// Copyright © 2010-2017 The CefSharp Authors. All rights reserved.
+// Copyright © 2017 The CefSharp Authors. All rights reserved.
 //
 // Use of this source code is governed by a BSD-style license that can be found in the LICENSE file.
 
 using System;
+using CefSharp.Structs;
 
 namespace CefSharp
 {
@@ -26,8 +27,6 @@ namespace CefSharp
         /// <param name="bufferHandle">buffer handle (back buffer)</param>
         /// <param name="width">width</param>
         /// <param name="height">height</param>
-        /// <param name="bytesPerPixel">bytes per pixel</param>
-        /// <param name="numberOfBytes">number of bytes in the buffer</param>
         public OnPaintEventArgs(bool isPopup, Rect dirtyRect, IntPtr bufferHandle, int width, int height)
         {
             IsPopup = isPopup;

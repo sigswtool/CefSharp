@@ -1,6 +1,7 @@
-// Copyright © 2010-2017 The CefSharp Authors. All rights reserved.
+// Copyright Â© 2016 The CefSharp Authors. All rights reserved.
 //
 // Use of this source code is governed by a BSD-style license that can be found in the LICENSE file.
+
 #pragma once
 
 #include "Stdafx.h"
@@ -14,19 +15,20 @@ namespace CefSharp
     {
         void WcfEnabledSubProcess::OnBrowserCreated(CefBrowserWrapper^ browser)
         {
-            if (!parentBrowserId.HasValue)
+            if (!_parentBrowserId.HasValue)
             {
-                parentBrowserId = browser->BrowserId;
+                _parentBrowserId = browser->BrowserId;
             }
 
-            if (!parentProcessId.HasValue || !parentBrowserId.HasValue)
+            if (!_parentBrowserId.HasValue)
             {
                 return;
             }
 
-            auto browserId = browser->IsPopup ? parentBrowserId.Value : browser->BrowserId;
+            //TODO: This can likely be simplified as both values are likely equal
+            auto browserId = browser->IsPopup ? _parentBrowserId.Value : browser->BrowserId;
 
-            auto serviceName = RenderprocessClientFactory::GetServiceName(parentProcessId.Value, browserId);
+            auto serviceName = RenderprocessClientFactory::GetServiceName(_parentProcessId, browserId);
 
             auto binding = BrowserProcessServiceHost::CreateBinding();
 
@@ -65,7 +67,6 @@ namespace CefSharp
             }
             catch (Exception^)
             {
-                
                 channelFactory->Abort();
             }
 

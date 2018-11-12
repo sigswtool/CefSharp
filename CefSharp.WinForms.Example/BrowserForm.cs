@@ -1,12 +1,11 @@
-﻿// Copyright © 2010-2017 The CefSharp Authors. All rights reserved.
+// Copyright © 2010 The CefSharp Authors. All rights reserved.
 //
 // Use of this source code is governed by a BSD-style license that can be found in the LICENSE file.
 
 using System;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using CefSharp.Example;
-using System.Threading.Tasks;
-using System.Text;
 
 namespace CefSharp.WinForms.Example
 {
@@ -114,6 +113,25 @@ namespace CefSharp.WinForms.Example
             new AboutBox().ShowDialog();
         }
 
+        public void RemoveTab(IntPtr windowHandle)
+        {
+            var parentControl = FromChildHandle(windowHandle);
+            if (!parentControl.IsDisposed)
+            {
+                if (parentControl.Parent is TabPage tabPage)
+                {
+                    browserTabControl.TabPages.Remove(tabPage);
+                }
+                else if (parentControl.Parent is Panel panel)
+                {
+                    var browserTabUserControl = (BrowserTabUserControl)panel.Parent;
+
+                    var tab = (TabPage)browserTabUserControl.Parent;
+                    browserTabControl.TabPages.Remove(tab);
+                }
+            }
+        }
+
         private void FindMenuItemClick(object sender, EventArgs e)
         {
             var control = GetCurrentTabControl();
@@ -152,28 +170,28 @@ namespace CefSharp.WinForms.Example
 
         private void CloseTabToolStripMenuItemClick(object sender, EventArgs e)
         {
-            if(browserTabControl.Controls.Count == 0)
+            if (browserTabControl.TabPages.Count == 0)
             {
                 return;
             }
 
             var currentIndex = browserTabControl.SelectedIndex;
 
-            var tabPage = browserTabControl.Controls[currentIndex];
+            var tabPage = browserTabControl.TabPages[currentIndex];
 
             var control = GetCurrentTabControl();
-            if (control != null)
+            if (control != null && !control.IsDisposed)
             {
                 control.Dispose();
             }
 
-            browserTabControl.Controls.Remove(tabPage);
+            browserTabControl.TabPages.Remove(tabPage);
 
             tabPage.Dispose();
 
             browserTabControl.SelectedIndex = currentIndex - 1;
 
-            if (browserTabControl.Controls.Count == 0)
+            if (browserTabControl.TabPages.Count == 0)
             {
                 ExitApplication();
             }
@@ -372,7 +390,7 @@ namespace CefSharp.WinForms.Example
             if (control != null)
             {
                 var frame = control.Browser.GetFocusedFrame();
-                
+
                 //Execute extension method
                 frame.ActiveElementAcceptsTextInput().ContinueWith(task =>
                 {
