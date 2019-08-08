@@ -9,6 +9,8 @@
 #include "include\cef_scheme.h"
 #include "CefWrapper.h"
 
+using namespace CefSharp::Enums;
+
 namespace CefSharp
 {
     namespace Internals
@@ -37,11 +39,9 @@ namespace CefSharp
                 _disposed = true;
             }
 
-            virtual bool AddCustomScheme(String^ schemeName, bool isStandard, bool isLocal, bool isDisplayIsolated, bool isSecure, bool isCorsEnabled, bool isCspBypassing)
+            virtual bool AddCustomScheme(String^ schemeName, CefSharp::Enums::SchemeOptions schemeOptions)
             {
-                ThrowIfDisposed();
-
-                return _registra->AddCustomScheme(StringUtils::ToNative(schemeName), isStandard, isLocal, isDisplayIsolated, isSecure, isCorsEnabled, isCspBypassing);
+                return _registra->AddCustomScheme(StringUtils::ToNative(schemeName), (int)schemeOptions);
             }
         };
     }

@@ -239,7 +239,12 @@ namespace CefSharp
                 }
             }
 
-            IMPLEMENT_REFCOUNTING(RenderClientAdapter)
+            virtual DECL void OnVirtualKeyboardRequested(CefRefPtr<CefBrowser> browser, cef_text_input_mode_t input_mode) OVERRIDE
+            {
+                _renderWebBrowser->OnVirtualKeyboardRequested(GetBrowserWrapper(browser->GetIdentifier()), (CefSharp::Enums::TextInputMode)input_mode);
+            }
+
+            IMPLEMENT_REFCOUNTING(RenderClientAdapter);
         };
     }
 }
