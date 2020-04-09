@@ -10,10 +10,10 @@
 #include "include\wrapper\cef_stream_resource_handler.h"
 
 #include "CefResponseWrapper.h"
-#include "CefRequestWrapper.h"
+#include "Request.h"
 #include "CefFrameWrapper.h"
-#include "CefSharpBrowserWrapper.h"
-#include "ResourceHandlerWrapper.h"
+#include "CefBrowserWrapper.h"
+#include "CefResourceHandlerAdapter.h"
 #include "CefResponseFilterAdapter.h"
 #include "CefRequestCallbackWrapper.h"
 #include "CefCookieAccessFilterAdapter.h"
@@ -46,12 +46,12 @@ namespace CefSharp
             CefRefPtr<CefCookieAccessFilter> GetCookieAccessFilter(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, CefRefPtr<CefRequest> request) OVERRIDE
             {
                 ICookieAccessFilter^ accessFilter;
-                CefRequestWrapper requestWrapper(request);
+                Request requestWrapper(request);
 
                 //For ServiceWorker browser and frame will be null
                 if (browser.get() && frame.get())
                 {
-                    CefSharpBrowserWrapper browserWrapper(browser);
+                    CefBrowserWrapper browserWrapper(browser);
                     CefFrameWrapper frameWrapper(frame);
 
                     accessFilter = _handler->GetCookieAccessFilter(_browserControl, %browserWrapper, %frameWrapper, %requestWrapper);
@@ -75,17 +75,17 @@ namespace CefSharp
                 if (browser.get() && frame.get())
                 {
                     //TODO: We previously used GetBrowserWrapper - investigate passing in reference to this adapter
-                    CefSharpBrowserWrapper browserWrapper(browser);
+                    CefBrowserWrapper browserWrapper(browser);
                     //We pass the frame and request wrappers to CefRequestCallbackWrapper so they can be disposed of
                     //when the callback is executed
                     auto frameWrapper = gcnew CefFrameWrapper(frame);
-                    auto requestWrapper = gcnew CefRequestWrapper(request);
+                    auto requestWrapper = gcnew Request(request);
                     auto requestCallback = gcnew CefRequestCallbackWrapper(callback, frameWrapper, requestWrapper);
 
                     return (cef_return_value_t)_handler->OnBeforeResourceLoad(_browserControl, %browserWrapper, frameWrapper, requestWrapper, requestCallback);
                 }
 
-                auto requestWrapper = gcnew CefRequestWrapper(request);
+                auto requestWrapper = gcnew Request(request);
                 auto requestCallback = gcnew CefRequestCallbackWrapper(callback, nullptr, requestWrapper);
 
                 return (cef_return_value_t)_handler->OnBeforeResourceLoad(_browserControl, nullptr, nullptr, requestWrapper, requestCallback);
@@ -94,12 +94,12 @@ namespace CefSharp
             CefRefPtr<CefResourceHandler> GetResourceHandler(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, CefRefPtr<CefRequest> request) OVERRIDE
             {
                 IResourceHandler^ resourceHandler;
-                CefRequestWrapper requestWrapper(request);
+                Request requestWrapper(request);
 
                 //For ServiceWorker browser and frame will be null
                 if (browser.get() && frame.get())
                 {
-                    CefSharpBrowserWrapper browserWrapper(browser);
+                    CefBrowserWrapper browserWrapper(browser);
                     CefFrameWrapper frameWrapper(frame);
 
                     resourceHandler = _handler->GetResourceHandler(_browserControl, %browserWrapper, %frameWrapper, %requestWrapper);
@@ -145,19 +145,19 @@ namespace CefSharp
                     return new CefStreamResourceHandler(StringUtils::ToNative(byteArrayResourceHandler->MimeType), streamReader);
                 }
 
-                return new ResourceHandlerWrapper(resourceHandler);
+                return new CefResourceHandlerAdapter(resourceHandler);
             }
 
             void OnResourceRedirect(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, CefRefPtr<CefRequest> request, CefRefPtr<CefResponse> response, CefString& newUrl) OVERRIDE
             {
                 auto managedNewUrl = StringUtils::ToClr(newUrl);
-                CefRequestWrapper requestWrapper(request);
+                Request requestWrapper(request);
                 CefResponseWrapper responseWrapper(response);
 
                 //For ServiceWorker browser and frame will be null
                 if (browser.get() && frame.get())
                 {
-                    CefSharpBrowserWrapper browserWrapper(browser);
+                    CefBrowserWrapper browserWrapper(browser);
                     CefFrameWrapper frameWrapper(frame);
 
                     _handler->OnResourceRedirect(_browserControl, %browserWrapper, %frameWrapper, %requestWrapper, %responseWrapper, managedNewUrl);
@@ -173,14 +173,14 @@ namespace CefSharp
 
             bool OnResourceResponse(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, CefRefPtr<CefRequest> request, CefRefPtr<CefResponse> response) OVERRIDE
             {
-                CefRequestWrapper requestWrapper(request);
+                Request requestWrapper(request);
                 CefResponseWrapper responseWrapper(response);
 
                 //For ServiceWorker browser and frame will be null
                 if (browser.get() && frame.get())
                 {
 
-                    CefSharpBrowserWrapper browserWrapper(browser);
+                    CefBrowserWrapper browserWrapper(browser);
                     CefFrameWrapper frameWrapper(frame);
 
                     return _handler->OnResourceResponse(_browserControl, %browserWrapper, %frameWrapper, %requestWrapper, %responseWrapper);
@@ -192,13 +192,13 @@ namespace CefSharp
             CefRefPtr<CefResponseFilter> GetResourceResponseFilter(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, CefRefPtr<CefRequest> request, CefRefPtr<CefResponse> response) OVERRIDE
             {
                 IResponseFilter^ responseFilter;
-                CefRequestWrapper requestWrapper(request);
+                Request requestWrapper(request);
                 CefResponseWrapper responseWrapper(response);
 
                 //For ServiceWorker browser and frame will be null
                 if (browser.get() && frame.get())
                 {
-                    CefSharpBrowserWrapper browserWrapper(browser);
+                    CefBrowserWrapper browserWrapper(browser);
                     CefFrameWrapper frameWrapper(frame);
 
                     responseFilter = _handler->GetResourceResponseFilter(_browserControl, %browserWrapper, %frameWrapper, %requestWrapper, %responseWrapper);
@@ -218,13 +218,13 @@ namespace CefSharp
 
             void OnResourceLoadComplete(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, CefRefPtr<CefRequest> request, CefRefPtr<CefResponse> response, URLRequestStatus status, int64 receivedContentLength) OVERRIDE
             {
-                CefRequestWrapper requestWrapper(request);
+                Request requestWrapper(request);
                 CefResponseWrapper responseWrapper(response);
 
                 //For ServiceWorker browser and frame will be null
                 if (browser.get() && frame.get())
                 {
-                    CefSharpBrowserWrapper browserWrapper(browser);
+                    CefBrowserWrapper browserWrapper(browser);
                     CefFrameWrapper frameWrapper(frame);
 
                     _handler->OnResourceLoadComplete(_browserControl, %browserWrapper, %frameWrapper, %requestWrapper, %responseWrapper, (UrlRequestStatus)status, receivedContentLength);
@@ -237,12 +237,12 @@ namespace CefSharp
 
             void OnProtocolExecution(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, CefRefPtr<CefRequest> request, bool& allowOSExecution) OVERRIDE
             {
-                CefRequestWrapper requestWrapper(request);
+                Request requestWrapper(request);
 
                 //For ServiceWorker browser and frame will be null
                 if (browser.get() && frame.get())
                 {
-                    CefSharpBrowserWrapper browserWrapper(browser);
+                    CefBrowserWrapper browserWrapper(browser);
                     CefFrameWrapper frameWrapper(frame);
 
 

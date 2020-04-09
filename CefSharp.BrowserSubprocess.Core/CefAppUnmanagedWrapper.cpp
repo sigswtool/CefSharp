@@ -55,28 +55,34 @@ namespace CefSharp
         //Multiple CefBrowserWrappers created when opening popups
         _browserWrappers->TryAdd(browser->GetIdentifier(), wrapper);
 
-        _legacyBindingEnabled = extraInfo->GetBool("LegacyBindingEnabled");
-
-        if (_legacyBindingEnabled)
+        //For the main browser only we check LegacyBindingEnabled and
+        //load the objects. Popups don't send this information and checking
+        //will override the _legacyBindingEnabled field
+        if (!browser->IsPopup())
         {
-            auto objects = extraInfo->GetList("LegacyBindingObjects");
-            if (objects.get() && objects->IsValid())
-            {
-                auto javascriptObjects = DeserializeJsObjects(objects, 0);
+            _legacyBindingEnabled = extraInfo->GetBool("LegacyBindingEnabled");
 
-                for each (JavascriptObject^ obj in Enumerable::OfType<JavascriptObject^>(javascriptObjects))
+            if (_legacyBindingEnabled)
+            {
+                auto objects = extraInfo->GetList("LegacyBindingObjects");
+                if (objects.get() && objects->IsValid())
                 {
-                    //Using LegacyBinding with multiple ChromiumWebBrowser instances that share the same
-                    //render process and using LegacyBinding will cause problems for the limited caching implementation
-                    //that exists at the moment, for now we'll remove an object if already exists, same behaviour
-                    //as the new binding method. 
-                    //TODO: This should be removed when https://github.com/cefsharp/CefSharp/issues/2306
-                    //Is complete as objects will be stored at the browser level
-                    if (_javascriptObjects->ContainsKey(obj->JavascriptName))
+                    auto javascriptObjects = DeserializeJsObjects(objects, 0);
+
+                    for each (JavascriptObject^ obj in Enumerable::OfType<JavascriptObject^>(javascriptObjects))
                     {
-                        _javascriptObjects->Remove(obj->JavascriptName);
+                        //Using LegacyBinding with multiple ChromiumWebBrowser instances that share the same
+                        //render process and using LegacyBinding will cause problems for the limited caching implementation
+                        //that exists at the moment, for now we'll remove an object if already exists, same behaviour
+                        //as the new binding method. 
+                        //TODO: This should be removed when https://github.com/cefsharp/CefSharp/issues/2306
+                        //Is complete as objects will be stored at the browser level
+                        if (_javascriptObjects->ContainsKey(obj->JavascriptName))
+                        {
+                            _javascriptObjects->Remove(obj->JavascriptName);
+                        }
+                        _javascriptObjects->Add(obj->JavascriptName, obj);
                     }
-                    _javascriptObjects->Add(obj->JavascriptName, obj);
                 }
             }
         }
@@ -235,15 +241,15 @@ namespace CefSharp
         auto frames = CefListValue::Create();
         for (auto i = 0; i < stackTrace->GetFrameCount(); i++)
         {
-            auto frame = CefListValue::Create();
+            auto stackTraceFrame = CefListValue::Create();
             auto frameArg = stackTrace->GetFrame(i);
 
-            frame->SetString(0, frameArg->GetFunctionName());
-            frame->SetInt(1, frameArg->GetLineNumber());
-            frame->SetInt(2, frameArg->GetColumn());
-            frame->SetString(3, frameArg->GetScriptNameOrSourceURL());
+            stackTraceFrame->SetString(0, frameArg->GetFunctionName());
+            stackTraceFrame->SetInt(1, frameArg->GetLineNumber());
+            stackTraceFrame->SetInt(2, frameArg->GetColumn());
+            stackTraceFrame->SetString(3, frameArg->GetScriptNameOrSourceURL());
 
-            frames->SetList(i, frame);
+            frames->SetList(i, stackTraceFrame);
         }
 
         list->SetList(1, frames);
@@ -573,8 +579,8 @@ namespace CefSharp
                             for (auto i = 0; i < javascriptObjects->Count; i++)
                             {
                                 auto dict = CefDictionaryValue::Create();
-                                auto name = javascriptObjects[i]->JavascriptName;
-                                dict->SetString("Name", StringUtils::ToNative(name));
+                                auto objectName = javascriptObjects[i]->JavascriptName;
+                                dict->SetString("Name", StringUtils::ToNative(objectName));
                                 dict->SetBool("IsCached", false);
                                 dict->SetBool("AlreadyBound", false);
 
