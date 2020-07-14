@@ -648,6 +648,18 @@ namespace CefSharp
             }
         }
 
+        void ClientAdapter::OnDocumentAvailableInMainFrame(CefRefPtr<CefBrowser> browser)
+        {
+            auto handler = _browserControl->RequestHandler;
+
+            if (handler != nullptr)
+            {
+                auto browserWrapper = GetBrowserWrapper(browser->GetIdentifier(), browser->IsPopup());
+
+                handler->OnDocumentAvailableInMainFrame(_browserControl, browserWrapper);
+            }
+        }
+
         bool ClientAdapter::GetAuthCredentials(CefRefPtr<CefBrowser> browser, const CefString& originUrl, bool isProxy,
             const CefString& host, int port, const CefString& realm, const CefString& scheme, CefRefPtr<CefAuthCallback> callback)
         {
@@ -980,6 +992,79 @@ namespace CefSharp
             }
         }
 
+        bool ClientAdapter::GetAudioParameters(CefRefPtr<CefBrowser> browser, CefAudioParameters & params)
+        {
+            auto handler = _browserControl->AudioHandler;
+
+            if (handler == nullptr)
+            {
+                return false;
+            }
+
+            auto browserWrapper = GetBrowserWrapper(browser->GetIdentifier(), browser->IsPopup());
+            auto parameters = new AudioParameters((CefSharp::Enums::ChannelLayout)params.channel_layout, params.sample_rate, params.frames_per_buffer);
+
+            auto result = handler->GetAudioParameters(_browserControl, browserWrapper, *parameters);
+
+            if (result)
+            {
+                params.channel_layout = (cef_channel_layout_t)parameters->ChannelLayout;
+                params.sample_rate = parameters->SampleRate;
+                params.frames_per_buffer = parameters->FramesPerBuffer;
+            }
+
+            return result;
+        }
+
+        void ClientAdapter::OnAudioStreamStarted(CefRefPtr<CefBrowser> browser, const CefAudioParameters& params, int channels)
+        {
+            auto handler = _browserControl->AudioHandler;
+
+            if (handler != nullptr)
+            {
+                auto browserWrapper = GetBrowserWrapper(browser->GetIdentifier(), browser->IsPopup());
+                AudioParameters parameters((CefSharp::Enums::ChannelLayout)params.channel_layout, params.sample_rate, params.frames_per_buffer);
+
+                handler->OnAudioStreamStarted(_browserControl, browserWrapper, parameters, channels);
+            }
+        }
+
+        void ClientAdapter::OnAudioStreamPacket(CefRefPtr<CefBrowser> browser, const float** data, int frames, int64 pts)
+        {
+            auto handler = _browserControl->AudioHandler;
+
+            if (handler != nullptr)
+            {
+                auto browserWrapper = GetBrowserWrapper(browser->GetIdentifier(), browser->IsPopup());
+
+                handler->OnAudioStreamPacket(_browserControl, browserWrapper, IntPtr((void *)data), frames, pts);
+            }
+        }
+
+        void ClientAdapter::OnAudioStreamStopped(CefRefPtr<CefBrowser> browser)
+        {
+            auto handler = _browserControl->AudioHandler;
+
+            if (handler != nullptr)
+            {
+                auto browserWrapper = GetBrowserWrapper(browser->GetIdentifier(), browser->IsPopup());
+
+                handler->OnAudioStreamStopped(_browserControl, browserWrapper);
+            }
+        }
+
+        void ClientAdapter::OnAudioStreamError(CefRefPtr<CefBrowser> browser, const CefString& message)
+        {
+            auto handler = _browserControl->AudioHandler;
+
+            if (handler != nullptr)
+            {
+                auto browserWrapper = GetBrowserWrapper(browser->GetIdentifier(), browser->IsPopup());
+
+                handler->OnAudioStreamError(_browserControl, browserWrapper, StringUtils::ToClr(message));
+            }
+        }
+
         bool ClientAdapter::OnProcessMessageReceived(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, CefProcessId source_process, CefRefPtr<CefProcessMessage> message)
         {
             auto handled = false;
@@ -1048,7 +1133,7 @@ namespace CefSharp
                 {
                     if (frame->IsMain())
                     {
-                        _browserControl->SetCanExecuteJavascriptOnMainFrame(true);
+                        _browserControl->SetCanExecuteJavascriptOnMainFrame(frame->GetIdentifier(), true);
                     }
 
                     auto handler = _browserControl->RenderProcessMessageHandler;
@@ -1072,7 +1157,7 @@ namespace CefSharp
                 {
                     if (frame->IsMain())
                     {
-                        _browserControl->SetCanExecuteJavascriptOnMainFrame(false);
+                        _browserControl->SetCanExecuteJavascriptOnMainFrame(frame->GetIdentifier(), false);
                     }
 
                     auto handler = _browserControl->RenderProcessMessageHandler;

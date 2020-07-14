@@ -33,8 +33,8 @@ Delete this line and everything above, and then fill in the details below.
 
 - **What version of the product are you using?**
     - What version are you using? Nuget? CI Nuget? build from a branch? If so please link to the relevant commit.
-	- Please include the exact version number you are using e.g. 79.1.360 (no ambiguous statements like `Latest from Nuget`)
-    - Please only create an issue if you can reproduce the problem with version 79.1.360 or greater.
+	- Please include the exact version number you are using e.g. 83.4.20 (no ambiguous statements like `Latest from Nuget`)
+    - Please only create an issue if you can reproduce the problem with version 83.4.20 or greater.
 
 - **What architecture x86 or x64?**
     <x86/x64>
@@ -66,9 +66,16 @@ Delete this line and everything above, and then fill in the details below.
 
 - **Does this problem also occur in the `CEF` Sample Application**
     - Download one of the following:
-	    - For x86 download http://opensource.spotify.com/cefbuilds/cef_binary_79.1.36%2Bg90301bd%2Bchromium-79.0.3945.130_windows32_client.tar.bz2
-	    - For x64 download http://opensource.spotify.com/cefbuilds/cef_binary_79.1.36%2Bg90301bd%2Bchromium-79.0.3945.130_windows64_client.tar.bz2
-	- If you are using WPF/OffScreen run cefclient --multi-threaded-message-loop --off-screen-rendering-enabled --enable-gpu
-    - If you are using WinForms run cefclient --multi-threaded-message-loop
+    - For x86 download http://opensource.spotify.com/cefbuilds/cef_binary_83.4.4%2Bgbabcf94%2Bchromium-83.0.4103.106_windows32_client.tar.bz2
+    - For x64 download http://opensource.spotify.com/cefbuilds/cef_binary_83.4.2%2Bgc8d4f85%2Bchromium-83.0.4103.106_windows64_client.tar.bz2
+	- Extract and run cefclient.exe
+		- If you are using WPF/OffScreen run
+		```
+		cefclient.exe --multi-threaded-message-loop --off-screen-rendering-enabled --enable-gpu --no-sandbox --disable-site-isolation-trials
+		```
+		- If you are using WinForms run
+		```
+		cefclient.exe --multi-threaded-message-loop --no-sandbox --disable-site-isolation-trials
+		```
 	- **MAKE SURE TO TEST WITH THE COMMAND LINE ARGS LISTED ABOVE**
     - If you can reproduce the problem with `cefclient` then you'll need to report the bug on https://bitbucket.org/chromiumembedded/cef/overview there is no point opening an issue here. (Make sure you search before opening an issue)

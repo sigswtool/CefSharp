@@ -22,6 +22,8 @@ namespace CefSharp.Wpf
             //https://peter.sh/experiments/chromium-command-line-switches/#disable-threaded-scrolling
             //CefCommandLineArgs.Add("disable-threaded-scrolling");
 
+            //Disable GPU Compositing
+            //Issue https://github.com/cefsharp/CefSharp/issues/3114
             CefCommandLineArgs.Add("disable-gpu-compositing");
         }
     }

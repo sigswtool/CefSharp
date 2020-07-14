@@ -6,6 +6,7 @@
 #include "CefBrowserHostWrapper.h"
 
 #include "include\cef_client.h"
+#include "include\cef_parser.h"
 
 #include "Cef.h"
 #include "CefExtensionWrapper.h"
@@ -14,6 +15,8 @@
 #include "CefRunFileDialogCallbackAdapter.h"
 #include "CefPdfPrintCallbackWrapper.h"
 #include "CefNavigationEntryVisitorAdapter.h"
+#include "CefRegistrationWrapper.h"
+#include "CefDevToolsMessageObserverAdapter.h"
 #include "RequestContext.h"
 #include "WindowInfo.h"
 
@@ -193,6 +196,77 @@ bool CefBrowserHostWrapper::HasDevTools::get()
     return _browserHost->HasDevTools();
 }
 
+bool CefBrowserHostWrapper::SendDevToolsMessage(String^ messageAsJson)
+{
+    ThrowIfDisposed();
+
+    ThrowIfExecutedOnNonCefUiThread();
+
+    if (String::IsNullOrEmpty(messageAsJson))
+    {
+        throw gcnew ArgumentNullException("messageAsJson");
+    }
+
+    //NOTE: Prefix with cli:: namespace as VS2015 gets confused with std::array
+    cli::array<Byte>^ buffer = System::Text::Encoding::UTF8->GetBytes(messageAsJson);
+    pin_ptr<Byte> src = &buffer[0];
+
+    return _browserHost->SendDevToolsMessage(static_cast<void*>(src), buffer->Length);
+}
+
+int CefBrowserHostWrapper::ExecuteDevToolsMethod(int messageId, String^ method, IDictionary<String^, Object^>^ paramaters)
+{
+    ThrowIfDisposed();
+
+    ThrowIfExecutedOnNonCefUiThread();
+
+    if (paramaters == nullptr)
+    {
+        return _browserHost->ExecuteDevToolsMethod(messageId, StringUtils::ToNative(method), NULL);
+    }
+
+    auto val = TypeConversion::ToNative(paramaters);
+
+    if (val && val->GetType() == VTYPE_DICTIONARY)
+    {
+        return _browserHost->ExecuteDevToolsMethod(messageId, StringUtils::ToNative(method), val->GetDictionary());
+    }
+
+    throw gcnew Exception("Unable to convert paramaters to CefDictionaryValue.");
+}
+
+
+
+int CefBrowserHostWrapper::ExecuteDevToolsMethod(int messageId, String^ method, String^ paramsAsJson)
+{
+    ThrowIfDisposed();
+
+    ThrowIfExecutedOnNonCefUiThread();
+
+    if (String::IsNullOrEmpty(paramsAsJson))
+    {
+        return _browserHost->ExecuteDevToolsMethod(messageId, StringUtils::ToNative(method), NULL);
+    }
+
+    auto val = CefParseJSON(StringUtils::ToNative(paramsAsJson), cef_json_parser_options_t::JSON_PARSER_RFC);
+
+    if (val && val->GetType() == VTYPE_DICTIONARY)
+    {
+        return _browserHost->ExecuteDevToolsMethod(messageId, StringUtils::ToNative(method), val->GetDictionary());
+    }
+
+    throw gcnew Exception("Unable to parse paramsAsJson with CefParseJSON method");
+}
+
+IRegistration^ CefBrowserHostWrapper::AddDevToolsMessageObserver(IDevToolsMessageObserver^ observer)
+{
+    ThrowIfDisposed();
+
+    auto registration = _browserHost->AddDevToolsMessageObserver(new CefDevToolsMessageObserverAdapter(observer));
+
+    return gcnew CefRegistrationWrapper(registration);
+}
+
 void CefBrowserHostWrapper::AddWordToDictionary(String^ word)
 {
     ThrowIfDisposed();
@@ -286,6 +360,7 @@ void CefBrowserHostWrapper::SendKeyEvent(int message, int wParam, int lParam)
     keyEvent.is_system_key = message == WM_SYSCHAR ||
         message == WM_SYSKEYDOWN ||
         message == WM_SYSKEYUP;
+    keyEvent.modifiers = GetCefKeyboardModifiers(wParam, lParam);
 
     if (message == WM_KEYDOWN || message == WM_SYSKEYDOWN)
     {
@@ -298,8 +373,28 @@ void CefBrowserHostWrapper::SendKeyEvent(int message, int wParam, int lParam)
     else
     {
         keyEvent.type = KEYEVENT_CHAR;
+
+        // mimic alt-gr check behaviour from
+        // src/ui/events/win/events_win_utils.cc: GetModifiersFromKeyState
+        if (IsKeyDown(VK_RMENU))
+        {
+            // reverse AltGr detection taken from PlatformKeyMap::UsesAltGraph
+            // instead of checking all combination for ctrl-alt, just check current char
+            HKL current_layout = ::GetKeyboardLayout(0);
+
+            // https://docs.microsoft.com/en-gb/windows/win32/api/winuser/nf-winuser-vkkeyscanexw
+            // ... high-order byte contains the shift state,
+            // which can be a combination of the following flag bits.
+            // 2 Either CTRL key is pressed.
+            // 4 Either ALT key is pressed.
+            SHORT scan_res = ::VkKeyScanExW(wParam, current_layout);
+            if (((scan_res >> 8) & 0xFF) == (2 | 4)) // ctrl-alt pressed
+            {
+                keyEvent.modifiers &= ~(EVENTFLAG_CONTROL_DOWN | EVENTFLAG_ALT_DOWN);
+                keyEvent.modifiers |= EVENTFLAG_ALTGR_DOWN;
+            }
+        }
     }
-    keyEvent.modifiers = GetCefKeyboardModifiers(wParam, lParam);
 
     _browserHost->SendKeyEvent(keyEvent);
 }
